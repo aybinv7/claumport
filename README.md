@@ -1,82 +1,184 @@
-# claumport
+# Claumport
 
-`claumport` exports local Claude Code sessions into portable archives and imports them on another account or computer. Run `claumport` with no arguments for guided keyboard navigation.
+Claumport moves local Claude Code sessions between Claude Desktop accounts and computers.
 
-No authentication, cookies, account settings, or remote Cowork data enter an archive. Import creates fresh session and message UUIDs, rewrites the working directory to the recipient's project path, and adds the session to the currently logged-in Claude Desktop account.
+It exports selected projects and sessions into one portable `.claumport` bundle. Import restores selected sessions into the current Claude Desktop account with fresh identities, so existing sessions and project files are not overwritten.
 
-## Typical workflow
+## Install
 
-Sender lists every resumable session stored on the device:
+### From npm
 
-```powershell
-claumport sessions list
-```
-
-Sender chooses account, project, then session interactively:
+After the public npm release:
 
 ```powershell
-claumport sessions export
+pnpm add --global claumport
+claumport
 ```
 
-Choose multiple projects with Space, then select sessions inside each project. Every selected session becomes its own `.claumport` file under `~/.claumport/exports`. Paths are terminal-clickable where supported; choose the Explorer reveal prompt or use `--reveal` to open the exported file location.
+### From source
+
+Requirements: Node.js 18 or newer, pnpm, Claude Desktop, and Claude Code local sessions.
 
 ```powershell
-claumport sessions export --all --reveal
+git clone https://github.com/aybinv7/claumport.git
+cd claumport
+pnpm install
+pnpm build
+pnpm link --global
+claumport
 ```
 
-Send selected archive files like sensitive documents.
-
-Recipient sees saved archives, then imports one into their local project path:
+To update a source installation later:
 
 ```powershell
-claumport sessions archives
-claumport sessions import --target "C:\code\my-project"
+git pull
+pnpm install
+pnpm build
 ```
 
-Archives live in `~/.claumport/exports`. `sessions import` first selects one or more source projects, then sessions from each project, then one destination folder per selected project. Import reads Claude Desktop's active account automatically. No logout or account switch is required. Existing project files are untouched.
+## Start
 
-## Same-device account switching
+Run Claumport with no arguments for keyboard navigation:
 
-Local transcripts usually remain after logout. `sessions list` reads all known account partitions on the device and marks the active account. Export desired sessions before or after switching accounts, then import their archives into the active account.
+```powershell
+claumport
+```
 
-Archives exported by the currently active account are disabled in the interactive importer. Export from Account A, log into Account B, then choose that archive from the library and import it. No export/import is required before logout if local sessions still remain; export only when you want a portable copy or to bring a session into another account/device.
+Use arrow keys to move, Space to toggle batch selections, Enter to continue, and type to filter longer lists.
 
-## Friendly account names
+Main areas:
 
-Claude Desktop stores session partitions by opaque account UUID, not a stable readable email/name record. Give each local account a name once; Claumport then uses it in interactive selectors and account views.
+- Accounts: inspect local account partitions and give them friendly names.
+- Sessions: browse projects, export one bundle, import a bundle, or inspect saved archives.
+- Archive library: view portable bundles kept by Claumport.
+
+Direct commands and flags remain available for scripts.
+
+## First-time account names
+
+Claude Desktop stores session partitions with opaque UUIDs. Claumport does not depend on private browser/auth storage to recover email addresses. Name each local account once instead:
 
 ```powershell
 claumport accounts label
 ```
 
-Use a name such as `Work — name@company.com` or `Personal`.
+Examples: `Work — ayoub@company.com`, `Personal`.
 
-## Safety model
+Labels are saved locally in `C:\Users\<you>\.claumport\accounts.json` and appear in Claumport selectors and lists.
 
-- Archives are versioned and include transcript size plus SHA-256 checksum.
-- Export streams transcripts without loading large sessions fully into memory.
-- Import verifies checksum before publishing the new transcript.
-- Imported sessions receive fresh IDs, so existing sessions are never overwritten.
-- Reimporting the same archive into the same account and folder is blocked unless `--allow-duplicate` is explicit.
-- Desktop metadata is written last and atomically.
-- Existing target project files are never changed.
-- Each completed import writes an operation record under `~/.claumport/operations`.
-
-Session transcripts can contain prompts, source code, terminal output, file contents, and secrets. Treat `.claumport` files as sensitive.
-
-## Non-interactive examples
+## Export sessions
 
 ```powershell
-claumport sessions export --account <account> --session <session> --output .\review.claumport
-claumport sessions import .\review.claumport --target C:\code\recipient-project --yes
-claumport sessions import .\review.claumport --target C:\code\recipient-project --allow-duplicate --yes
+claumport sessions export
 ```
 
-Use `--data-dir` and `--claude-dir` for non-default Claude storage paths.
+Flow:
+
+1. Choose source account and Claude workspace.
+2. Select one or more projects.
+3. Select one or more sessions inside each project, or choose all.
+4. Claumport creates one `.claumport` bundle for everything selected.
+5. Copy, upload, or send that one bundle.
+
+Exported bundles are stored in:
+
+```text
+C:\Users\<you>\.claumport\exports
+```
+
+Claumport prints a clickable bundle path where terminal links are supported. Choose the Explorer prompt, or use `--reveal`, to open its location:
+
+```powershell
+claumport sessions export --all --reveal
+```
+
+If a bundle filename already exists, Claumport asks whether to replace it. Choosing No creates a numbered new filename. Use `--overwrite` only when replacement is intended.
+
+Useful export flags:
+
+```powershell
+claumport sessions export --all
+claumport sessions export --session <id> --session <id>
+claumport sessions export --output .\team-handoff.claumport
+claumport sessions export --output .\team-handoff.claumport --overwrite
+```
+
+## Import sessions
+
+Put a received `.claumport` bundle in `C:\Users\<you>\.claumport\exports`, then run:
+
+```powershell
+claumport sessions import
+```
+
+Flow:
+
+1. Claumport reads the active Claude Desktop account automatically.
+2. Choose one or more source projects from the bundle library.
+3. Choose all or specific sessions in each project.
+4. Choose one destination folder for each source project.
+5. Confirm import.
+
+You can import a bundle directly from another location too:
+
+```powershell
+claumport sessions import "C:\Users\<you>\Downloads\friend-handoff.claumport"
+```
+
+For one known destination project:
+
+```powershell
+claumport sessions import .\team-handoff.claumport --target "C:\code\recipient-project" --yes
+```
+
+Imports create fresh Claude session/message IDs and rewrite transcript working directories to selected destination folders. Existing project files are untouched.
+
+## Switching accounts on one computer
+
+Local Claude Code transcripts usually remain after logout. Claumport lists local account partitions even when another account is active:
+
+```powershell
+claumport sessions list
+```
+
+You do not need to export before logout if sessions remain locally available. Export a bundle whenever you want a portable backup or need sessions to appear in another account/device.
+
+New bundles record their source account. During interactive import, bundles from the currently active account are disabled to prevent pointless self-imports. Log into Account B, then import an export created while using Account A.
+
+## Archive library
+
+```powershell
+claumport sessions archives
+```
+
+Shows valid saved bundles and sessions. Archive library location:
+
+```text
+C:\Users\<you>\.claumport\exports
+```
+
+Completed imports are recorded locally in:
+
+```text
+C:\Users\<you>\.claumport\operations
+```
+
+Reimporting the same session bundle into the same account and destination folder is blocked by default. Use `--allow-duplicate` only when a deliberate second clone is needed.
+
+## Safety and privacy
+
+- Bundles are versioned and include per-session SHA-256 checksums.
+- Export and import stream transcript data; large sessions are not loaded fully into memory.
+- Import verifies transcript checksums before publishing sessions.
+- Destination metadata is written last and atomically.
+- Claumport never exports authentication, cookies, Claude account settings, or remote Cowork data.
+- Bundles can contain prompts, source code, terminal output, file contents, and secrets. Treat every `.claumport` file as sensitive data.
+
+## Scope
+
+Claumport supports local Claude Code sessions surfaced by Claude Desktop. Remote Cowork sessions remain account-scoped on Anthropic services. Legacy local Cowork VM sessions use another format and are excluded.
 
 ## Development
-
-Use pnpm:
 
 ```powershell
 pnpm install
@@ -84,7 +186,3 @@ pnpm test
 ```
 
 Do not use npm in this project.
-
-## Boundary
-
-Current format targets local Claude Code sessions shown by Claude Desktop. Remote Cowork sessions remain account-scoped on Anthropic's service. Legacy local Cowork VM sessions use a different format and are intentionally excluded.
