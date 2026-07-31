@@ -40,7 +40,7 @@ export default class Menu extends Command {
     const action = await selectOne<SessionsAction>('Sessions', [
       {hint: 'Grouped by local Claude Code project', label: 'Browse sessions', value: 'list'},
       {hint: 'Choose project, then session', label: 'Export session', value: 'export'},
-      {hint: 'Choose an archive from library', label: 'Import session', value: 'import'},
+      {hint: 'Use a saved archive or drop a .claumport file', label: 'Import session', value: 'import'},
       {hint: 'View saved portable archives', label: 'Archive library', value: 'archives'},
       {label: 'Back', value: 'back'},
     ])

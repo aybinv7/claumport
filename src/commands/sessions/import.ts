@@ -1,6 +1,6 @@
 import {Args, Command, Flags} from '@oclif/core'
 
-import {chooseArchiveProjects, chooseArchives} from '../../cli/archive-selection.js'
+import {askArchivePath, chooseArchiveImportSource, chooseArchiveProjects, chooseArchives} from '../../cli/archive-selection.js'
 import {shortId} from '../../cli/format.js'
 import {chooseDirectory, confirm} from '../../cli/prompts.js'
 import {chooseAccount, chooseOrganization, resolveAccount} from '../../cli/session-selection.js'
@@ -9,6 +9,7 @@ import {AccountLabelRepository} from '../../modules/accounts/account-label-repos
 import {AccountRepository} from '../../modules/accounts/account-repository.js'
 import {ActiveAccountRepository} from '../../modules/accounts/active-account-repository.js'
 import {inspectArchiveSessions} from '../../modules/archives/archive-format.js'
+import {ArchiveLibraryService} from '../../modules/archives/archive-library-service.js'
 import {type ArchiveProject, groupArchivesByProject} from '../../modules/archives/archive-projects.js'
 import {ArchiveRepository} from '../../modules/archives/archive-repository.js'
 import {SessionArchiveImportService} from '../../modules/archives/session-archive-import-service.js'
@@ -46,7 +47,7 @@ export default class SessionsImport extends Command {
     const service = new SessionArchiveImportService(paths.codeSessionsDir, paths.operationsDir, paths.projectsDir)
     const archiveProjects = args.archive
       ? groupArchivesByProject(await inspectArchiveSessions(args.archive))
-      : await this.chooseArchiveProjects(paths.archivesDir, activeAccountId)
+      : await this.chooseArchiveSource(paths.archivesDir, activeAccountId)
     if (flags.target && archiveProjects.length > 1) this.error('--target can only be used when importing one project')
     if (flags.title && archiveProjects.reduce((count, project) => count + project.archives.length, 0) > 1) {
       this.error('--title can only be used when importing one session')
@@ -79,10 +80,13 @@ export default class SessionsImport extends Command {
     }
   }
 
-  private async chooseArchiveProjects(archivesDir: string, currentAccountId?: string): Promise<ArchiveProject[]> {
+  private async chooseArchiveSource(archivesDir: string, currentAccountId?: string): Promise<ArchiveProject[]> {
     const archives = await new ArchiveRepository(archivesDir).list()
-    if (archives.length === 0) {
-      throw new Error(`No valid .claumport archives found in ${archivesDir}. Export a session first or pass an archive path.`)
+    const source = await chooseArchiveImportSource(archivesDir, archives.length)
+    if (source === 'file') {
+      const added = await new ArchiveLibraryService(archivesDir).add(await askArchivePath())
+      this.log(`Added archive to ${archivesDir}`)
+      return groupArchivesByProject(added)
     }
 
     const projects = await chooseArchiveProjects(`Choose project(s) from ${archivesDir}`, groupArchivesByProject(archives), currentAccountId)

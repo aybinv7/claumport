@@ -114,10 +114,11 @@ claumport sessions import
 Flow:
 
 1. Claumport reads the active Claude Desktop account automatically.
-2. Choose one or more source projects from the bundle library.
-3. Choose all or specific sessions in each project.
-4. Choose one destination folder for each source project.
-5. Confirm import.
+2. Choose a saved archive, or drag and drop a received `.claumport` file into the terminal.
+3. Files selected from another location are copied into the local archive library.
+4. Choose one or more source projects and sessions.
+5. Choose one destination folder for each source project.
+6. Confirm import.
 
 You can import a bundle directly from another location too:
 
