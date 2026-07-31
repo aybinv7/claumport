@@ -56,7 +56,7 @@ describe('portable session archive', () => {
     const inspected = await inspectArchive(archivePath)
     const importer = new SessionArchiveImportService(sessionsDirectory, operationsDirectory, projectsDirectory)
     const plan = await importer.createPlan({
-      archivePath,
+      archive: inspected,
       destinationAccountId: 'recipient-account',
       destinationOrganizationId: 'recipient-organization',
       targetDirectory,
@@ -80,7 +80,7 @@ describe('portable session archive', () => {
     expect(await readFile(join(targetDirectory, 'README.md'), 'utf8')).to.equal('keep me')
 
     const duplicatePlan = await importer.createPlan({
-      archivePath,
+      archive: inspected,
       destinationAccountId: 'recipient-account',
       destinationOrganizationId: 'recipient-organization',
       targetDirectory,

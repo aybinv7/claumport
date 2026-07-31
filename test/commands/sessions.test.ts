@@ -1,6 +1,6 @@
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
-import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
@@ -69,5 +69,37 @@ describe('session commands', () => {
     expect(exported.stdout).to.contain('Exported 1 session(s) in one bundle')
     expect(imported.stdout).to.contain('"targetDirectory"')
     expect(imported.stdout).to.contain('target-account')
+  })
+
+  it('imports every selected session from a multi-session bundle', async () => {
+    const project = join(claudeDirectory, 'projects', 'project')
+    const source = join(dataDirectory, 'claude-code-sessions', 'source-account', 'organization')
+    await Promise.all([
+      writeFile(
+        join(source, 'local_second.json'),
+        JSON.stringify({cliSessionId: 'transcript-second', sessionId: 'local_second', title: 'Second fixture session'}),
+      ),
+      writeFile(join(project, 'transcript-second.jsonl'), '{"type":"user"}\n'),
+    ])
+    const archive = join(root, 'bundle.claumport')
+    const target = join(root, 'bundle import')
+    await runCommand(
+      `sessions export --account source --organization organization --session local_session --session local_second --output "${archive}" --data-dir "${dataDirectory}" --claude-dir "${claudeDirectory}"`,
+    )
+
+    const imported = await runCommand(
+      `sessions import "${archive}" --organization organization --target "${target}" --yes --data-dir "${dataDirectory}" --claude-dir "${claudeDirectory}"`,
+    )
+    const destination = join(dataDirectory, 'claude-code-sessions', 'target-account', 'organization')
+    const metadataFiles = await readdir(destination)
+    const titles = await Promise.all(
+      metadataFiles.map(async (file) => JSON.parse(await readFile(join(destination, file), 'utf8')) as {title: string}),
+    )
+
+    expect(imported.stdout).to.contain('Imported 2 session(s)')
+    expect(titles.map((metadata) => metadata.title)).to.have.members([
+      'Imported - Fixture session',
+      'Imported - Second fixture session',
+    ])
   })
 })

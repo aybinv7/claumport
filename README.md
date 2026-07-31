@@ -116,9 +116,9 @@ Flow:
 1. Claumport reads the active Claude Desktop account automatically.
 2. Choose a saved archive, or drag and drop a received `.claumport` file into the terminal.
 3. Files selected from another location are copied into the local archive library.
-4. Choose one or more source projects and sessions.
-5. Choose one destination folder for each source project.
-6. Confirm import.
+4. Choose one or more source projects and sessions. One bundle can import many sessions.
+5. Choose the matching local project folder for each source project. Claumport explains the recorded source path but does not preselect a missing path from another device.
+6. Review the session count and destination mapping, then confirm.
 
 You can import a bundle directly from another location too:
 
@@ -152,7 +152,7 @@ New bundles record their source account. During interactive import, bundles from
 claumport sessions archives
 ```
 
-Shows valid saved bundles and sessions. Archive library location:
+The guided Archive library menu can import saved sessions, add a received file, or browse bundle details. The command above prints saved bundles grouped by file. Archive library location:
 
 ```text
 C:\Users\<you>\.claumport\exports

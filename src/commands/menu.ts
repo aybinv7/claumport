@@ -5,6 +5,7 @@ import {selectOne} from '../cli/prompts.js'
 type MainAction = 'accounts' | 'archives' | 'exit' | 'sessions'
 type AccountsAction = 'back' | 'label'
 type SessionsAction = 'archives' | 'back' | 'export' | 'import' | 'list'
+type ArchivesAction = 'back' | 'browse' | 'file' | 'import'
 
 export default class Menu extends Command {
   static description = 'Open guided Claumport session manager'
@@ -22,6 +23,18 @@ export default class Menu extends Command {
     if (action === 'label') await this.config.runCommand('accounts:label')
   }
 
+  private async openArchives(): Promise<void> {
+    const action = await selectOne<ArchivesAction>('Archive library', [
+      {hint: 'Choose one or many saved sessions', label: 'Import saved sessions', value: 'import'},
+      {hint: 'Drag and drop or paste a .claumport file path', label: 'Import a file', value: 'file'},
+      {hint: 'Show saved bundles, sessions, dates, and paths', label: 'Browse archive details', value: 'browse'},
+      {label: 'Back', value: 'back'},
+    ])
+    if (action === 'import') await this.config.runCommand('sessions:import', ['--source', 'library'])
+    if (action === 'file') await this.config.runCommand('sessions:import', ['--source', 'file'])
+    if (action === 'browse') await this.config.runCommand('sessions:archives')
+  }
+
   private async openMenu(): Promise<void> {
     const action = await selectOne<MainAction>('What would you like to do?', [
       {hint: 'View, name, and switch between local Claude accounts', label: 'Accounts', value: 'accounts'},
@@ -31,7 +44,7 @@ export default class Menu extends Command {
     ])
     if (action === 'exit') return
     if (action === 'accounts') await this.openAccounts()
-    if (action === 'archives') await this.config.runCommand('sessions:archives')
+    if (action === 'archives') await this.openArchives()
     if (action === 'sessions') await this.openSessions()
     await this.openMenu()
   }
@@ -47,6 +60,6 @@ export default class Menu extends Command {
     if (action === 'list') await this.config.runCommand('sessions:list')
     if (action === 'export') await this.config.runCommand('sessions:export')
     if (action === 'import') await this.config.runCommand('sessions:import')
-    if (action === 'archives') await this.config.runCommand('sessions:archives')
+    if (action === 'archives') await this.openArchives()
   }
 }

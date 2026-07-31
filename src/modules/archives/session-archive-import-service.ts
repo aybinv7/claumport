@@ -2,11 +2,10 @@ import {randomUUID} from 'node:crypto'
 import {mkdir, rm, rmdir} from 'node:fs/promises'
 import {join, resolve} from 'node:path'
 
-import type {ArchiveImportOperation, ArchiveImportPlan} from './archive-types.js'
+import type {ArchiveImportOperation, ArchiveImportPlan, SessionArchiveDescriptor} from './archive-types.js'
 
 import {filesNamed, pathExists, readJson, writeJsonAtomic} from '../../shared/filesystem.js'
 import {projectDirectoryName} from '../sessions/project-directory.js'
-import {inspectArchive} from './archive-format.js'
 import {importTranscript} from './transcript-importer.js'
 
 export class SessionArchiveImportService {
@@ -17,18 +16,17 @@ export class SessionArchiveImportService {
   ) {}
 
   public async createPlan(options: {
-    archivePath: string
+    archive: SessionArchiveDescriptor
     destinationAccountId: string
     destinationOrganizationId: string
     targetDirectory: string
   }): Promise<ArchiveImportPlan> {
-    const archive = await inspectArchive(resolve(options.archivePath))
     const targetDirectory = resolve(options.targetDirectory)
     const destinationCliSessionId = randomUUID()
     const destinationSessionId = `local_${randomUUID()}`
     const destinationProjectDir = join(this.projectsDir, projectDirectoryName(targetDirectory))
     return {
-      archive,
+      archive: options.archive,
       destinationAccountId: options.destinationAccountId,
       destinationCliSessionId,
       destinationMetadataPath: join(

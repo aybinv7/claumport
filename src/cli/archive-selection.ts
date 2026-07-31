@@ -1,8 +1,9 @@
 import type {ArchiveProject} from '../modules/archives/archive-projects.js'
 import type {SessionArchiveDescriptor} from '../modules/archives/archive-types.js'
 
+import {pathExists} from '../shared/filesystem.js'
 import {compactPath, formatTimestamp} from './format.js'
-import {askText, selectMany, selectOne} from './prompts.js'
+import {askText, chooseDirectory, selectMany, selectOne, showNote} from './prompts.js'
 
 export type ArchiveImportSource = 'file' | 'library'
 
@@ -53,11 +54,12 @@ export async function chooseArchiveProjects(
 ): Promise<ArchiveProject[]> {
   const all = '__all_archive_projects__'
   const selectable = projects.filter((project) => project.archives.some((archive) => !isCurrentAccountArchive(archive, currentAccountId)))
+  if (selectable.length === 1) return selectable
   const selection = await selectMany<ArchiveProject | typeof all>(question, [
     {disabled: selectable.length === 0, hint: `${selectable.length} importable project(s)`, label: 'All importable projects', value: all},
     ...projects.map((project) => ({
       disabled: !project.archives.some((archive) => !isCurrentAccountArchive(archive, currentAccountId)),
-      hint: `${project.archives.length} archive(s) · ${compactPath(project.path)}`,
+      hint: `${project.archives.length} session(s) · source ${compactPath(project.path)}`,
       label: project.name,
       value: project,
     })),
@@ -72,16 +74,38 @@ export async function chooseArchives(
 ): Promise<SessionArchiveDescriptor[]> {
   const all = '__all_archives__'
   const selectable = archives.filter((archive) => !isCurrentAccountArchive(archive, currentAccountId))
+  if (selectable.length === 1) return selectable
   const selection = await selectMany<SessionArchiveDescriptor | typeof all>(question, [
     {disabled: selectable.length === 0, hint: `${selectable.length} importable archive(s)`, label: 'All importable sessions', value: all},
     ...archives.map((archive) => ({
       disabled: isCurrentAccountArchive(archive, currentAccountId),
-      hint: `${formatTimestamp(Date.parse(archive.manifest.exportedAt))}${isCurrentAccountArchive(archive, currentAccountId) ? ' · current account export' : ''}`,
+      hint: `${formatTimestamp(Date.parse(archive.manifest.exportedAt))} · ${archive.manifest.source.deviceName}${isCurrentAccountArchive(archive, currentAccountId) ? ' · current account export' : ''}`,
       label: archive.manifest.source.title,
       value: archive,
     })),
   ])
   return selection.includes(all) ? selectable : selection.filter((item): item is SessionArchiveDescriptor => item !== all)
+}
+
+export async function chooseArchiveTarget(project: ArchiveProject): Promise<string> {
+  const sourcePath = project.path?.trim()
+  showNote(
+    [
+      `Source project: ${sourcePath ?? 'Path was not recorded'}`,
+      'Select the local project folder where these sessions should appear.',
+      'Only session history is imported. Project files are never changed.',
+    ].join('\n'),
+    `Destination · ${project.name}`,
+  )
+  if (sourcePath && (await pathExists(sourcePath))) {
+    const destination = await selectOne<'other' | 'source'>('Use the detected local project folder?', [
+      {hint: 'Folder exists on this device', label: compactPath(sourcePath), value: 'source'},
+      {hint: 'Browse or paste another folder', label: 'Choose another folder', value: 'other'},
+    ])
+    if (destination === 'source') return sourcePath
+  }
+
+  return chooseDirectory(`Local project folder for ${project.name}`)
 }
 
 function isCurrentAccountArchive(archive: SessionArchiveDescriptor, currentAccountId?: string): boolean {

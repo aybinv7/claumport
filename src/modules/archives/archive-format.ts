@@ -13,7 +13,7 @@ const MAX_MANIFEST_BYTES = 1024 * 1024
 
 export async function inspectArchive(archivePath: string): Promise<SessionArchiveDescriptor> {
   const sessions = await inspectArchiveSessions(archivePath)
-  if (sessions.length !== 1) throw new Error('Archive contains multiple sessions; select it from Claumport library')
+  if (sessions.length !== 1) throw new Error('Expected one session but archive contains multiple sessions')
   return sessions[0]
 }
 

@@ -1,4 +1,7 @@
 import {Command, Flags} from '@oclif/core'
+import {basename} from 'node:path'
+
+import type {SessionArchiveDescriptor} from '../../modules/archives/archive-types.js'
 
 import {compactPath, formatTimestamp, shortId} from '../../cli/format.js'
 import {accent, muted} from '../../cli/terminal-style.js'
@@ -28,10 +31,29 @@ export default class SessionsArchives extends Command {
       return
     }
 
-    for (const archive of archives) {
-      this.log(`\n${archive.manifest.source.title}`)
-      this.log(muted(`${formatTimestamp(Date.parse(archive.manifest.exportedAt))} · ${shortId(archive.manifest.archiveId)}`))
-      this.log(muted(compactPath(archive.archivePath)))
+    const files = groupByFile(archives)
+    this.log(muted(`${files.size} archive file(s) · ${archives.length} session(s)`))
+    for (const [path, sessions] of files) {
+      const newest = sessions[0]
+      this.log(`\n${basename(path)}`)
+      this.log(muted(`${sessions.length} session(s) · ${formatTimestamp(Date.parse(newest.manifest.exportedAt))}`))
+      for (const session of sessions) {
+        this.log(`  ${session.manifest.source.title}`)
+        this.log(muted(`  ${session.manifest.source.deviceName} · ${shortId(session.manifest.archiveId)}`))
+      }
+
+      this.log(muted(compactPath(path)))
     }
   }
+}
+
+function groupByFile(archives: SessionArchiveDescriptor[]): Map<string, SessionArchiveDescriptor[]> {
+  const files = new Map<string, SessionArchiveDescriptor[]>()
+  for (const archive of archives) {
+    const sessions = files.get(archive.archivePath)
+    if (sessions) sessions.push(archive)
+    else files.set(archive.archivePath, [archive])
+  }
+
+  return files
 }

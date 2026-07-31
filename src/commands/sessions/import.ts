@@ -1,8 +1,10 @@
 import {Args, Command, Flags} from '@oclif/core'
 
-import {askArchivePath, chooseArchiveImportSource, chooseArchiveProjects, chooseArchives} from '../../cli/archive-selection.js'
+import type {SessionArchiveDescriptor} from '../../modules/archives/archive-types.js'
+
+import {askArchivePath, chooseArchiveImportSource, chooseArchiveProjects, chooseArchives, chooseArchiveTarget} from '../../cli/archive-selection.js'
 import {shortId} from '../../cli/format.js'
-import {chooseDirectory, confirm} from '../../cli/prompts.js'
+import {confirm, showNote} from '../../cli/prompts.js'
 import {chooseAccount, chooseOrganization, resolveAccount} from '../../cli/session-selection.js'
 import {resolvePaths} from '../../config/paths.js'
 import {AccountLabelRepository} from '../../modules/accounts/account-label-repository.js'
@@ -16,7 +18,7 @@ import {SessionArchiveImportService} from '../../modules/archives/session-archiv
 
 export default class SessionsImport extends Command {
   static args = {
-    archive: Args.string({description: 'Portable .claumport archive; omit to choose from Claumport library'}),
+    archive: Args.string({description: 'Portable .claumport archive; omit for guided source selection'}),
   }
   static description = 'Import a portable session archive into the active Claude Desktop account'
   static flags = {
@@ -27,6 +29,7 @@ export default class SessionsImport extends Command {
     'dry-run': Flags.boolean({description: 'Validate archive and show plan without changing files'}),
     json: Flags.boolean({description: 'Print machine-readable JSON'}),
     organization: Flags.string({char: 'o', description: 'Destination organization UUID'}),
+    source: Flags.string({description: 'Interactive archive source', options: ['file', 'library']}),
     target: Flags.string({char: 't', description: 'Local project folder for imported session'}),
     title: Flags.string({description: 'Imported session title'}),
     yes: Flags.boolean({char: 'y', description: 'Import without confirmation'}),
@@ -47,7 +50,7 @@ export default class SessionsImport extends Command {
     const service = new SessionArchiveImportService(paths.codeSessionsDir, paths.operationsDir, paths.projectsDir)
     const archiveProjects = args.archive
       ? groupArchivesByProject(await inspectArchiveSessions(args.archive))
-      : await this.chooseArchiveSource(paths.archivesDir, activeAccountId)
+      : await this.chooseArchiveSource(paths.archivesDir, activeAccountId, flags.source)
     if (flags.target && archiveProjects.length > 1) this.error('--target can only be used when importing one project')
     if (flags.title && archiveProjects.reduce((count, project) => count + project.archives.length, 0) > 1) {
       this.error('--title can only be used when importing one session')
@@ -62,10 +65,12 @@ export default class SessionsImport extends Command {
     }
 
     if (!flags.yes) {
-      this.warn('Import creates a fresh session identity. Existing project files are not modified.')
-      const accepted = await confirm(
-        `Import ${plans.length} session(s) into ${labels.get(account.id) ?? `account ${shortId(account.id)}`}?`,
+      showNote(
+        summarizeTargets(plans).map(({count, targetDirectory}) => `${count} session(s) → ${targetDirectory}`).join('\n'),
+        `Import ${plans.length} session(s) into ${labels.get(account.id) ?? `account ${shortId(account.id)}`}`,
       )
+      this.warn('Import creates a fresh session identity. Existing project files are not modified.')
+      const accepted = await confirm('Continue with import?')
       if (!accepted) {
         this.log('Cancelled. Nothing changed.')
         return
@@ -76,22 +81,34 @@ export default class SessionsImport extends Command {
     if (flags.json) this.log(JSON.stringify(operations, null, 2))
     else {
       this.log(`Imported ${operations.length} session(s) into ${labels.get(account.id) ?? `account ${shortId(account.id)}`}.`)
-      for (const operation of operations) this.log(`  Project: ${operation.targetDirectory}`)
+      for (const summary of summarizeTargets(operations)) this.log(`  ${summary.count} session(s) → ${summary.targetDirectory}`)
     }
   }
 
-  private async chooseArchiveSource(archivesDir: string, currentAccountId?: string): Promise<ArchiveProject[]> {
+  private async chooseArchiveSource(archivesDir: string, currentAccountId?: string, requestedSource?: string): Promise<ArchiveProject[]> {
     const archives = await new ArchiveRepository(archivesDir).list()
-    const source = await chooseArchiveImportSource(archivesDir, archives.length)
+    if (requestedSource === 'library' && archives.length === 0) {
+      this.error(`Archive library is empty: ${archivesDir}. Import a file instead.`)
+    }
+
+    const source = requestedSource === 'file' || requestedSource === 'library'
+      ? requestedSource
+      : await chooseArchiveImportSource(archivesDir, archives.length)
     if (source === 'file') {
       const added = await new ArchiveLibraryService(archivesDir).add(await askArchivePath())
       this.log(`Added archive to ${archivesDir}`)
       return groupArchivesByProject(added)
     }
 
-    const projects = await chooseArchiveProjects(`Choose project(s) from ${archivesDir}`, groupArchivesByProject(archives), currentAccountId)
+    const projects = await chooseArchiveProjects('Select projects to import', groupArchivesByProject(archives), currentAccountId)
     return chooseArchivesFromProjects(projects, currentAccountId)
   }
+}
+
+function summarizeTargets(items: {targetDirectory: string}[]): {count: number; targetDirectory: string}[] {
+  const targets = new Map<string, number>()
+  for (const item of items) targets.set(item.targetDirectory, (targets.get(item.targetDirectory) ?? 0) + 1)
+  return [...targets].map(([targetDirectory, count]) => ({count, targetDirectory}))
 }
 
 async function chooseArchivesFromProjects(
@@ -109,14 +126,14 @@ async function chooseProjectArchives(
 ): Promise<ArchiveProject[]> {
   const project = projects[index]
   if (!project) return selected
-  const archives = await chooseArchives(`Choose session archive(s) from ${project.name}`, project.archives, currentAccountId)
+  const archives = await chooseArchives(`Select sessions to import · ${project.name}`, project.archives, currentAccountId)
   return chooseProjectArchives(projects, currentAccountId, index + 1, [...selected, {...project, archives}])
 }
 
 async function chooseImportTargets(
   projects: ArchiveProject[],
   target?: string,
-): Promise<{archivePath: string; targetDirectory: string}[]> {
+): Promise<{archive: SessionArchiveDescriptor; targetDirectory: string}[]> {
   return chooseProjectTargets(projects, target, 0, [])
 }
 
@@ -124,18 +141,18 @@ async function chooseProjectTargets(
   projects: ArchiveProject[],
   target: string | undefined,
   index: number,
-  selected: {archivePath: string; targetDirectory: string}[],
-): Promise<{archivePath: string; targetDirectory: string}[]> {
+  selected: {archive: SessionArchiveDescriptor; targetDirectory: string}[],
+): Promise<{archive: SessionArchiveDescriptor; targetDirectory: string}[]> {
   const project = projects[index]
   if (!project) return selected
-  const targetDirectory = target ?? (await chooseDirectory(`Choose destination folder for ${project.name}`, project.path))
-  const additions = project.archives.map((archive) => ({archivePath: archive.archivePath, targetDirectory}))
+  const targetDirectory = target ?? (await chooseArchiveTarget(project))
+  const additions = project.archives.map((archive) => ({archive, targetDirectory}))
   return chooseProjectTargets(projects, target, index + 1, [...selected, ...additions])
 }
 
 async function createPlans(
   service: SessionArchiveImportService,
-  requests: {archivePath: string; targetDirectory: string}[],
+  requests: {archive: SessionArchiveDescriptor; targetDirectory: string}[],
   destinationAccountId: string,
   destinationOrganizationId: string,
 ): Promise<Awaited<ReturnType<SessionArchiveImportService['createPlan']>>[]> {
@@ -153,7 +170,7 @@ async function createPlanAt(
     destinationAccountId: string
     destinationOrganizationId: string
     plans: Awaited<ReturnType<SessionArchiveImportService['createPlan']>>[]
-    requests: {archivePath: string; targetDirectory: string}[]
+    requests: {archive: SessionArchiveDescriptor; targetDirectory: string}[]
   },
   index = 0,
 ): Promise<Awaited<ReturnType<SessionArchiveImportService['createPlan']>>[]> {

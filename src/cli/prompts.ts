@@ -71,6 +71,10 @@ export async function askText(question: string, placeholder?: string): Promise<s
   return answer.trim()
 }
 
+export function showNote(message: string, title?: string): void {
+  prompts.note(message, title)
+}
+
 export async function chooseDirectory(question: string, initialValue?: string): Promise<string> {
   if (!stdin.isTTY || !stdout.isTTY) throw new Error(`${question} requires --target in non-interactive mode`)
   const answer = await prompts.path({directory: true, initialValue, message: question})
