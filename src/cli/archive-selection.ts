@@ -7,6 +7,16 @@ import {askText, chooseDirectory, selectMany, selectOne, showNote} from './promp
 
 export type ArchiveImportSource = 'file' | 'library'
 
+export type DuplicateArchiveAction = 'override' | 'rename' | 'skip'
+
+export async function chooseDuplicateAction(title: string): Promise<DuplicateArchiveAction> {
+  return selectOne<DuplicateArchiveAction>(`"${title}" was already imported into this account and folder`, [
+    {hint: 'Import again with the same title', label: 'Override — import as a duplicate', value: 'override'},
+    {hint: 'Import again under a different title', label: 'Import with a new name', value: 'rename'},
+    {hint: 'Leave this session out of the batch', label: 'Skip this session', value: 'skip'},
+  ])
+}
+
 export async function chooseArchiveImportSource(archivesDir: string, archiveCount: number): Promise<ArchiveImportSource> {
   return selectOne<ArchiveImportSource>('Where is the archive?', [
     {

@@ -8,6 +8,8 @@ import {filesNamed, pathExists, readJson, writeJsonAtomic} from '../../shared/fi
 import {projectDirectoryName} from '../sessions/project-directory.js'
 import {importTranscript} from './transcript-importer.js'
 
+export class DuplicateArchiveError extends Error {}
+
 export class SessionArchiveImportService {
   public constructor(
     private readonly codeSessionsDir: string,
@@ -48,7 +50,7 @@ export class SessionArchiveImportService {
     options: {allowDuplicate?: boolean; title?: string} = {},
   ): Promise<ArchiveImportOperation> {
     if (!options.allowDuplicate && (await this.wasImported(plan))) {
-      throw new Error('This archive was already imported into this account and folder. Use --allow-duplicate to clone it again.')
+      throw new DuplicateArchiveError('This archive was already imported into this account and folder.')
     }
 
     if (await pathExists(plan.destinationMetadataPath)) throw new Error('Generated destination metadata already exists')

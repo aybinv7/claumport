@@ -2,9 +2,9 @@ import {Args, Command, Flags} from '@oclif/core'
 
 import type {SessionArchiveDescriptor} from '../../modules/archives/archive-types.js'
 
-import {askArchivePath, chooseArchiveImportSource, chooseArchiveProjects, chooseArchives, chooseArchiveTarget} from '../../cli/archive-selection.js'
+import {askArchivePath, chooseArchiveImportSource, chooseArchiveProjects, chooseArchives, chooseArchiveTarget, chooseDuplicateAction} from '../../cli/archive-selection.js'
 import {shortId} from '../../cli/format.js'
-import {confirm, showNote} from '../../cli/prompts.js'
+import {askText, confirm, showNote} from '../../cli/prompts.js'
 import {chooseAccount, chooseOrganization, resolveAccount} from '../../cli/session-selection.js'
 import {resolvePaths} from '../../config/paths.js'
 import {AccountLabelRepository} from '../../modules/accounts/account-label-repository.js'
@@ -14,7 +14,7 @@ import {inspectArchiveSessions} from '../../modules/archives/archive-format.js'
 import {ArchiveLibraryService} from '../../modules/archives/archive-library-service.js'
 import {type ArchiveProject, groupArchivesByProject} from '../../modules/archives/archive-projects.js'
 import {ArchiveRepository} from '../../modules/archives/archive-repository.js'
-import {SessionArchiveImportService} from '../../modules/archives/session-archive-import-service.js'
+import {DuplicateArchiveError, SessionArchiveImportService} from '../../modules/archives/session-archive-import-service.js'
 
 export default class SessionsImport extends Command {
   static args = {
@@ -77,11 +77,12 @@ export default class SessionsImport extends Command {
       }
     }
 
-    const operations = await executePlans(service, plans, {allowDuplicate: flags['allow-duplicate'], title: flags.title})
-    if (flags.json) this.log(JSON.stringify(operations, null, 2))
+    const {operations, skipped} = await executePlans(service, plans, {allowDuplicate: flags['allow-duplicate'], title: flags.title})
+    if (flags.json) this.log(JSON.stringify({operations, skipped}, null, 2))
     else {
       this.log(`Imported ${operations.length} session(s) into ${labels.get(account.id) ?? `account ${shortId(account.id)}`}.`)
       for (const summary of summarizeTargets(operations)) this.log(`  ${summary.count} session(s) → ${summary.targetDirectory}`)
+      if (skipped > 0) this.log(`Skipped ${skipped} duplicate session(s).`)
     }
   }
 
@@ -180,12 +181,14 @@ async function createPlanAt(
   return createPlanAt(service, {...state, plans: [...state.plans, plan]}, index + 1)
 }
 
+type ExecutePlansResult = {operations: Awaited<ReturnType<SessionArchiveImportService['execute']>>[]; skipped: number}
+
 async function executePlans(
   service: SessionArchiveImportService,
   plans: Awaited<ReturnType<SessionArchiveImportService['createPlan']>>[],
   options: {allowDuplicate?: boolean; title?: string},
-): Promise<Awaited<ReturnType<SessionArchiveImportService['execute']>>[]> {
-  return executePlanAt(service, {operations: [], options, plans})
+): Promise<ExecutePlansResult> {
+  return executePlanAt(service, {operations: [], options, plans, skipped: 0})
 }
 
 async function executePlanAt(
@@ -194,11 +197,36 @@ async function executePlanAt(
     operations: Awaited<ReturnType<SessionArchiveImportService['execute']>>[]
     options: {allowDuplicate?: boolean; title?: string}
     plans: Awaited<ReturnType<SessionArchiveImportService['createPlan']>>[]
+    skipped: number
   },
   index = 0,
-): Promise<Awaited<ReturnType<SessionArchiveImportService['execute']>>[]> {
+): Promise<ExecutePlansResult> {
   const plan = state.plans[index]
-  if (!plan) return state.operations
-  const operation = await service.execute(plan, state.options)
+  if (!plan) return {operations: state.operations, skipped: state.skipped}
+  try {
+    const operation = await service.execute(plan, state.options)
+    return executePlanAt(service, {...state, operations: [...state.operations, operation]}, index + 1)
+  } catch (error) {
+    if (!(error instanceof DuplicateArchiveError)) throw error
+    return executeDuplicate(service, state, index)
+  }
+}
+
+async function executeDuplicate(
+  service: SessionArchiveImportService,
+  state: {
+    operations: Awaited<ReturnType<SessionArchiveImportService['execute']>>[]
+    options: {allowDuplicate?: boolean; title?: string}
+    plans: Awaited<ReturnType<SessionArchiveImportService['createPlan']>>[]
+    skipped: number
+  },
+  index: number,
+): Promise<ExecutePlansResult> {
+  const plan = state.plans[index]
+  const sourceTitle = plan.archive.manifest.source.title
+  const action = await chooseDuplicateAction(sourceTitle)
+  if (action === 'skip') return executePlanAt(service, {...state, skipped: state.skipped + 1}, index + 1)
+  const title = action === 'rename' ? await askText(`New title for "${sourceTitle}"`, `${sourceTitle} (2)`) : state.options.title
+  const operation = await service.execute(plan, {...state.options, allowDuplicate: true, title})
   return executePlanAt(service, {...state, operations: [...state.operations, operation]}, index + 1)
 }

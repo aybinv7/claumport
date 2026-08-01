@@ -177,7 +177,7 @@ Completed imports are recorded locally in:
 C:\Users\<you>\.claumport\operations
 ```
 
-Reimporting the same session bundle into the same account and destination folder is blocked by default. Use `--allow-duplicate` only when a deliberate second clone is needed.
+Reimporting a session already recorded for the same account and destination folder does not fail the batch. Claumport asks, per session: override (import again with the same title), import with a new name, or skip. Pass `--allow-duplicate` to pre-approve every duplicate in the batch without being asked.
 
 ## Safety and privacy
 
