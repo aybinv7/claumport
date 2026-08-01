@@ -1,10 +1,6 @@
+allowBuilds:
+  unrs-resolver: true
+  yarn: true
 onlyBuiltDependencies:
-  - c
-  - e
-  - l
-  - n
-  - o
-  - r
-  - t
   - unrs-resolver
   - yarn
