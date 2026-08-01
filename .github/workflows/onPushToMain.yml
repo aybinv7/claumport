@@ -57,5 +57,5 @@ jobs:
           name: ${{ steps.version-check.outputs.tag }}
           tag: ${{ steps.version-check.outputs.tag }}
           commit: ${{ github.ref_name }}
-          token: ${{ github.token }}
+          token: ${{ secrets.RELEASE_TOKEN }}
           skipIfReleaseExists: true
