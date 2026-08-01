@@ -8,11 +8,24 @@ It exports selected projects and sessions into one portable `.claumport` bundle.
 
 ### From npm
 
-After the public npm release:
+Requirements: Node.js 18 or newer.
+
+```powershell
+npm install --global claumport
+claumport
+```
+
+Or with pnpm:
 
 ```powershell
 pnpm add --global claumport
 claumport
+```
+
+To update later:
+
+```powershell
+npm install --global claumport@latest
 ```
 
 ### From source

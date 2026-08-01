@@ -42,7 +42,8 @@ jobs:
         if: ${{ steps.version-check.outputs.skipped == 'false' }}
         id: oclif-readme
         run: |
-          pnpm install
+          pnpm install --trust-lockfile
+          pnpm run build
           pnpm exec oclif readme
           if [ -n "$(git status --porcelain)" ]; then
             git add .

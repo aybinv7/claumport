@@ -18,6 +18,6 @@ jobs:
         with:
           node-version: ${{ matrix.node_version }}
           cache: pnpm
-      - run: pnpm install
+      - run: pnpm install --trust-lockfile
       - run: pnpm run build
       - run: pnpm run test
