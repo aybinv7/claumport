@@ -102,4 +102,36 @@ describe('session commands', () => {
       'Imported - Second fixture session',
     ])
   })
+
+  it('creates one destination subfolder per project when importing a multi-project bundle', async () => {
+    const source = join(dataDirectory, 'claude-code-sessions', 'source-account', 'organization')
+    const projectA = join(claudeDirectory, 'projects', 'project-a')
+    const projectB = join(claudeDirectory, 'projects', 'project-b')
+    await Promise.all([mkdir(projectA, {recursive: true}), mkdir(projectB, {recursive: true})])
+    await Promise.all([
+      writeFile(
+        join(source, 'local_a.json'),
+        JSON.stringify({cliSessionId: 'transcript-a', cwd: join(root, 'source-project-a'), sessionId: 'local_a', title: 'Session A'}),
+      ),
+      writeFile(
+        join(source, 'local_b.json'),
+        JSON.stringify({cliSessionId: 'transcript-b', cwd: join(root, 'source-project-b'), sessionId: 'local_b', title: 'Session B'}),
+      ),
+      writeFile(join(projectA, 'transcript-a.jsonl'), '{}\n'),
+      writeFile(join(projectB, 'transcript-b.jsonl'), '{}\n'),
+    ])
+
+    const archive = join(root, 'multi-project.claumport')
+    const importRoot = join(root, 'imported')
+    await runCommand(
+      `sessions export --account source --organization organization --session local_a --session local_b --output "${archive}" --data-dir "${dataDirectory}" --claude-dir "${claudeDirectory}"`,
+    )
+    const imported = await runCommand(
+      `sessions import "${archive}" --organization organization --target "${importRoot}" --yes --data-dir "${dataDirectory}" --claude-dir "${claudeDirectory}"`,
+    )
+
+    expect(imported.stdout).to.contain('Imported 2 session(s)')
+    const createdFolders = await readdir(importRoot)
+    expect(createdFolders.sort()).to.deep.equal(['source-project-a', 'source-project-b'])
+  })
 })

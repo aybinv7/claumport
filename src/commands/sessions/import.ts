@@ -1,8 +1,9 @@
 import {Args, Command, Flags} from '@oclif/core'
+import {join} from 'node:path'
 
 import type {SessionArchiveDescriptor} from '../../modules/archives/archive-types.js'
 
-import {askArchivePath, chooseArchiveImportSource, chooseArchiveProjects, chooseArchives, chooseArchiveTarget, chooseDuplicateAction} from '../../cli/archive-selection.js'
+import {askArchivePath, chooseArchiveImportSource, chooseArchiveProjects, chooseArchives, chooseArchiveTarget, chooseDuplicateAction, chooseImportRoot} from '../../cli/archive-selection.js'
 import {shortId} from '../../cli/format.js'
 import {askText, confirm, showNote} from '../../cli/prompts.js'
 import {chooseAccount, chooseOrganization, resolveAccount} from '../../cli/session-selection.js'
@@ -30,7 +31,7 @@ export default class SessionsImport extends Command {
     json: Flags.boolean({description: 'Print machine-readable JSON'}),
     organization: Flags.string({char: 'o', description: 'Destination organization UUID'}),
     source: Flags.string({description: 'Interactive archive source', options: ['file', 'library']}),
-    target: Flags.string({char: 't', description: 'Local project folder for imported session'}),
+    target: Flags.string({char: 't', description: 'Local project folder for a single project, or the root folder to create one subfolder per project under when importing more than one'}),
     title: Flags.string({description: 'Imported session title'}),
     yes: Flags.boolean({char: 'y', description: 'Import without confirmation'}),
   }
@@ -51,7 +52,6 @@ export default class SessionsImport extends Command {
     const archiveProjects = args.archive
       ? groupArchivesByProject(await inspectArchiveSessions(args.archive))
       : await this.chooseArchiveSource(paths.archivesDir, activeAccountId, flags.source)
-    if (flags.target && archiveProjects.length > 1) this.error('--target can only be used when importing one project')
     if (flags.title && archiveProjects.reduce((count, project) => count + project.archives.length, 0) > 1) {
       this.error('--title can only be used when importing one session')
     }
@@ -135,6 +135,11 @@ async function chooseImportTargets(
   projects: ArchiveProject[],
   target?: string,
 ): Promise<{archive: SessionArchiveDescriptor; targetDirectory: string}[]> {
+  if (projects.length > 1) {
+    const root = target ?? (await chooseImportRoot(projects.length))
+    return projects.flatMap((project) => project.archives.map((archive) => ({archive, targetDirectory: join(root, project.name)})))
+  }
+
   return chooseProjectTargets(projects, target, 0, [])
 }
 

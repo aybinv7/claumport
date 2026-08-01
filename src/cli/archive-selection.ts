@@ -97,6 +97,14 @@ export async function chooseArchives(
   return selection.includes(all) ? selectable : selection.filter((item): item is SessionArchiveDescriptor => item !== all)
 }
 
+export async function chooseImportRoot(projectCount: number): Promise<string> {
+  showNote(
+    `Each of the ${projectCount} source projects gets its own subfolder under the folder you choose next.`,
+    'Destination · all projects',
+  )
+  return chooseDirectory('Local root folder for imported projects')
+}
+
 export async function chooseArchiveTarget(project: ArchiveProject): Promise<string> {
   const sourcePath = project.path?.trim()
   showNote(

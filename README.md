@@ -130,7 +130,7 @@ Flow:
 2. Choose a saved archive, or drag and drop a received `.claumport` file into the terminal.
 3. Files selected from another location are copied into the local archive library.
 4. Choose one or more source projects and sessions. One bundle can import many sessions.
-5. Choose the matching local project folder for each source project. Claumport explains the recorded source path but does not preselect a missing path from another device.
+5. Choose a destination. Importing a single project asks for that project's local folder (and offers the recorded source path when it still exists on this device). Importing multiple projects asks once for a root folder, then creates one subfolder per source project underneath it.
 6. Review the session count and destination mapping, then confirm.
 
 You can import a bundle directly from another location too:
